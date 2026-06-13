@@ -1,0 +1,19 @@
+# Sekret files
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+
+# Database files
+*.db
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
