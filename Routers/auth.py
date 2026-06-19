@@ -1,9 +1,8 @@
-from fastapi import APIRouter, FastAPI, Depends, HTTPException, security, status, Response
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from Models.models import ProfileModel
 from Schemas.schemas import ProfileLoginSchema, ProfileRegisterSchema
 from Core.security import hash_password, verify_password, create_token
-from pydantic import BaseModel
 from Database.db import SessionDep
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -37,5 +36,23 @@ async def register(data: ProfileRegisterSchema, session: SessionDep):
    
 @router.post("/login")
 async def login(data: ProfileLoginSchema, session: SessionDep):
-    # твоя логіка тут!
-    pass
+    
+    # 1. find user
+    result = await session.execute(
+        select(ProfileModel).where(ProfileModel.phone == data.phone)
+    )
+    user = result.scalar()
+    
+    # 2. if not found
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found!")
+    
+    # 3. check password
+    if not verify_password(data.password, user.password):
+        raise HTTPException(status_code=401, detail="Wrong password!")
+    
+    # 4. create a token
+    token = create_token({"user_id": user.id})
+    
+    # 5. return token
+    return {"token": token}
