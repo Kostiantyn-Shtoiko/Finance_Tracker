@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from Routers.auth import router as auth_router
 from Database.db import setup_database
+from Routers.transactions import router as transactions_router
 
 app = FastAPI()
-
+app.include_router(transactions_router)
 app.include_router(auth_router)
 
 @app.on_event("startup")
