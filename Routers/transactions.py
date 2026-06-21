@@ -29,3 +29,14 @@ async def get_transactions(session: SessionDep, user: ProfileModel = Depends(get
     )
     transactions = result.scalars().all()
     return transactions
+
+@router.get("/balance")
+async def get_balance(session: SessionDep, user: ProfileModel = Depends(get_current_user)):
+    result = await session.execute(
+        select(TransactionModel).where(TransactionModel.user_id == user.id)
+    )
+    transactions = result.scalars().all()
+    total_income = sum(t.amount for t in transactions if t.type == "income")
+    total_expense = sum(t.amount for t in transactions if t.type == "expense")
+    balance = total_income - total_expense
+    return {"balance": balance}
