@@ -125,7 +125,26 @@ async def register_user(last_name: str, first_name: str, phone: str, password: s
             }
         )
         return response.json()
+    
 
+@dp.message(Command("balance"))
+async def balance_command(message: types.Message):
+    token = user_tokens.get(message.from_user.id)
+    
+    if not token:
+        await message.answer("Please /login first!")
+        return
+    
+    balance = await get_balance(token)
+    await message.answer(f"Your balance is: {balance['balance']}")
+
+async def get_balance(token: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "http://127.0.0.1:8000/transactions/balance",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
 
 
 if __name__ == "__main__":
