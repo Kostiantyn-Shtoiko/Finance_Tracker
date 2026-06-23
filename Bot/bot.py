@@ -216,6 +216,32 @@ async def add_transaction(token: str, data: dict):
         return response.json()
 
 
+@dp.message(Command("history"))
+async def history_command(message: types.Message):
+    token = user_tokens.get(message.from_user.id)
+    
+    if not token:
+        await message.answer("Please /login first!")
+        return
+    
+    transactions = await get_transactions(token)
+    if not transactions:
+        await message.answer("No transactions found.")
+        return
+
+    transaction_list = "\n".join([
+        f"• {tx['title']} - {tx['amount']} ({tx['category']})" for tx in transactions
+    ])
+    await message.answer(f"Your transactions:\n{transaction_list}")
+
+async def get_transactions(token: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "http://127.0.0.1:8000/transactions/",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+
 
 
 
