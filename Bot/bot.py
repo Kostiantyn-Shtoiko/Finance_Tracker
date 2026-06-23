@@ -188,7 +188,7 @@ async def add_transaction_start(message: types.Message, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data in ["type_income", "type_expense"])
 async def add_transaction_type(callback_query: types.CallbackQuery, state: FSMContext):
-    await state.update_data(type=callback_query.data)
+    await state.update_data(type=callback_query.data.replace("type_", ""))
     await callback_query.answer()
     await callback_query.message.answer("Please enter the amount:")
     await state.set_state(AddTransactionStates.waiting_for_amount)
@@ -205,13 +205,28 @@ async def add_transaction_amount(message: types.Message, state: FSMContext):
         return 
     
     await state.update_data(amount=amount)
-    await message.answer("✅ Please enter the category:")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🍔 Food", callback_data="category_food"),
+            InlineKeyboardButton(text="💼 Salary", callback_data="category_salary"),
+        ],
+        [
+            InlineKeyboardButton(text="🚗 Transport", callback_data="category_transport"),
+            InlineKeyboardButton(text="🏠 Housing", callback_data="category_housing"),
+        ],
+        [
+            InlineKeyboardButton(text="🎮 Entertainment", callback_data="category_entertainment"),
+            InlineKeyboardButton(text="📝 Other", callback_data="category_other"),
+        ]
+    ])
+    await message.answer("Choose category:", reply_markup=keyboard)
     await state.set_state(AddTransactionStates.waiting_for_category)
 
-@dp.message(AddTransactionStates.waiting_for_category)
-async def add_transaction_category(message: types.Message, state: FSMContext):
-    await state.update_data(category=message.text)
-    await message.answer("Please enter the title:")
+@dp.callback_query(lambda c: c.data.startswith("category_"))
+async def add_transaction_category(callback_query: types.CallbackQuery, state: FSMContext):
+    await state.update_data(category=callback_query.data.replace("category_", ""))
+    await callback_query.answer()
+    await callback_query.message.answer("Please enter the title:")
     await state.set_state(AddTransactionStates.waiting_for_title)
 
 @dp.message(AddTransactionStates.waiting_for_title)
@@ -232,7 +247,7 @@ async def add_transaction_date(message: types.Message, state: FSMContext):
     
     data = await state.get_data()
     token = user_tokens.get(message.from_user.id)
-    
+
     result = await add_transaction(token, data)
     
     if "success" in result:
