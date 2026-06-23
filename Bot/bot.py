@@ -5,6 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
+from datetime import datetime
 import os
 import asyncio
 import httpx
@@ -221,6 +222,12 @@ async def add_transaction_title(message: types.Message, state: FSMContext):
 
 @dp.message(AddTransactionStates.waiting_for_date)
 async def add_transaction_date(message: types.Message, state: FSMContext):
+    try:
+        datetime.strptime(message.text, "%Y-%m-%d")
+    except ValueError:
+        await message.answer("❌ Wrong format! Use: YYYY-MM-DD\nExample: 2024-01-15")
+        return
+
     await state.update_data(date=message.text)
     
     data = await state.get_data()
