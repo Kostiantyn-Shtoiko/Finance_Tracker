@@ -1,8 +1,9 @@
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -162,12 +163,22 @@ async def add_transaction_start(message: types.Message, state: FSMContext):
     if not token:
         await message.answer("Please /login first!")
         return
-    await message.answer("Please enter the type of transaction:")
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="💰 Income", callback_data="type_income"),
+            InlineKeyboardButton(text="💸 Expense", callback_data="type_expense")
+        ]
+    ])
+    
+    await message.answer("Choose transaction type:", reply_markup=keyboard)
     await state.set_state(AddTransactionStates.waiting_for_type)
-@dp.message(AddTransactionStates.waiting_for_type)
-async def add_transaction_type(message: types.Message, state: FSMContext):
-    await state.update_data(type=message.text)
-    await message.answer("Please enter the amount:")
+
+@dp.callback_query(lambda c: c.data in ["type_income", "type_expense"])
+async def add_transaction_type(callback_query: types.CallbackQuery, state: FSMContext):
+    await state.update_data(type=callback_query.data)
+    await callback_query.answer()
+    await callback_query.message.answer("Please enter the amount:")
     await state.set_state(AddTransactionStates.waiting_for_amount)
 @dp.message(AddTransactionStates.waiting_for_amount)
 async def add_transaction_amount(message: types.Message, state: FSMContext):
