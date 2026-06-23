@@ -86,18 +86,29 @@ async def login_user(phone: str, password: str):
 async def register_start(message: types.Message, state: FSMContext):
     await message.answer("Please enter your last name:")
     await state.set_state(RegisterStates.waiting_for_last_name)
+
 @dp.message(RegisterStates.waiting_for_last_name)
 async def register_last_name(message: types.Message, state: FSMContext):
     await state.update_data(last_name=message.text)
     await message.answer("Please enter your first name:")
     await state.set_state(RegisterStates.waiting_for_first_name)
+
 @dp.message(RegisterStates.waiting_for_first_name)
 async def register_first_name(message: types.Message, state: FSMContext):
     await state.update_data(first_name=message.text)
     await message.answer("Please enter your phone number:")
     await state.set_state(RegisterStates.waiting_for_phone)
+
 @dp.message(RegisterStates.waiting_for_phone)
 async def register_phone(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❌ Phone must contain only numbers! Try again:")
+        return
+
+    if not (10 <= len(message.text) <= 13):
+        await message.answer("❌ Phone must be 10-13 digits! Try again:")
+        return
+
     await state.update_data(phone=message.text)
     await message.answer("Please enter your password:")
     await state.set_state(RegisterStates.waiting_for_password)
