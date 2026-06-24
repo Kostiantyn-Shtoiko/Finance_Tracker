@@ -1,3 +1,5 @@
+from email.mime import message
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
@@ -116,6 +118,15 @@ async def register_phone(message: types.Message, state: FSMContext):
 
 @dp.message(RegisterStates.waiting_for_password)
 async def register_password(message: types.Message, state: FSMContext):
+
+    if len(message.text) < 6:
+        await message.answer("❌ Password too short! Minimum 6 characters!")
+        return
+
+    if len(message.text) > 120:
+        await message.answer("❌ Password too long! Maximum 120 characters!")
+        return
+
     await state.update_data(password=message.text)
     
     data = await state.get_data()
