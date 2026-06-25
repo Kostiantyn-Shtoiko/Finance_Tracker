@@ -197,6 +197,7 @@ Total: 2 transactions
 
 **Kostiantyn Shtoiko**
 - GitHub: [@Kostiantyn-Shtoiko](https://github.com/Kostiantyn-Shtoiko)
+- https://t.me/Finance_Tracker_3_Bot
 
 ---
 
