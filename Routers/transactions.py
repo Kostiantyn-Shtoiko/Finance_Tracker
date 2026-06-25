@@ -41,7 +41,11 @@ async def get_balance(session: SessionDep, user: ProfileModel = Depends(get_curr
     total_income = sum(t.amount for t in transactions if t.type == "income")
     total_expense = sum(t.amount for t in transactions if t.type == "expense")
     balance = total_income - total_expense
-    return {"balance": balance}
+    return {
+        "balance": balance, 
+        "total_income": total_income, 
+        "total_expense": total_expense
+    }
 
 @router.delete("/{transaction_id}")
 async def delete_transaction(transaction_id: int, session: SessionDep, user: ProfileModel = Depends(get_current_user)):

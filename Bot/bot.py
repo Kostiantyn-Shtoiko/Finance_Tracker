@@ -168,7 +168,17 @@ async def balance_command(message: types.Message):
         return
     
     balance = await get_balance(token)
-    await message.answer(f"Your balance is: {balance['balance']}")
+
+    text = (
+        f"💰 Your Finance Summary\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"📈 Income:  +{balance['total_income']:.2f}\n"
+        f"📉 Expense: -{balance['total_expense']:.2f}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"💵 Balance:  {balance['balance']:.2f}"
+    )
+    
+    await message.answer(text)
 
 async def get_balance(token: str):
     async with httpx.AsyncClient() as client:
