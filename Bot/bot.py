@@ -177,7 +177,7 @@ async def balance_command(message: types.Message):
         f"━━━━━━━━━━━━━━━\n"
         f"💵 Balance:  {balance['balance']:.2f}"
     )
-    
+
     await message.answer(text)
 
 async def get_balance(token: str):
@@ -304,13 +304,21 @@ async def history_command(message: types.Message):
     
     transactions = await get_transactions(token)
     if not transactions:
-        await message.answer("No transactions found.")
+        await message.answer("No transactions found 📭")
         return
 
-    transaction_list = "\n".join([
-        f"• {tx['title']} - {tx['amount']} ({tx['category']})" for tx in transactions
-    ])
-    await message.answer(f"Your transactions:\n{transaction_list}")
+    text = "📊 Your Transaction History:\n"
+    text += "━━━━━━━━━━━━━━━━━━━━\n"
+    
+    for i, tx in enumerate(transactions, 1):
+        emoji = "📈" if tx['type'] == "income" else "📉"
+        text += f"{i}. {emoji} {tx['title']}\n"
+        text += f"   📁 {tx['category']} | 💵 {tx['amount']:.2f}\n"
+        text += f"   📅 {tx['date']}\n\n"
+    
+    text += "━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"Total: {len(transactions)} transactions"
+    await message.answer(text)
 
 async def get_transactions(token: str):
     async with httpx.AsyncClient() as client:
