@@ -79,7 +79,7 @@ async def login_password(message: types.Message, state: FSMContext):
 async def login_user(phone: str, password: str):
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://127.0.0.1:8000/auth/login",
+            "http://api:8000/auth/login",
             json={"phone": phone, "password": password}
         )
         return response.json()
@@ -148,7 +148,7 @@ async def register_password(message: types.Message, state: FSMContext):
 async def register_user(last_name: str, first_name: str, phone: str, password: str):
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://127.0.0.1:8000/auth/register",
+            "http://api:8000/auth/register",
             json={
                 "last_name": last_name,
                 "first_name": first_name,
@@ -183,7 +183,7 @@ async def balance_command(message: types.Message):
 async def get_balance(token: str):
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            "http://127.0.0.1:8000/transactions/balance",
+            "http://api:8000/transactions/balance",
             headers={"Authorization": f"Bearer {token}"}
         )
         return response.json()
@@ -281,7 +281,7 @@ async def add_transaction_date(message: types.Message, state: FSMContext):
 async def add_transaction(token: str, data: dict):
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://127.0.0.1:8000/transactions/",
+            "http://api:8000/transactions/",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "type": data.get("type"),
@@ -323,7 +323,7 @@ async def history_command(message: types.Message):
 async def get_transactions(token: str):
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            "http://127.0.0.1:8000/transactions/",
+            "http://api:8000/transactions/",
             headers={"Authorization": f"Bearer {token}"}
         )
         return response.json()
