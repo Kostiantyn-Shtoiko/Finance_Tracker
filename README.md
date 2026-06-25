@@ -190,14 +190,17 @@ python Bot/bot.py
 ━━━━━━━━━━━━━━━━━━━━
 Total: 2 transactions
 ```
-
+## 🚀 Live Demo
+- API: https://financetracker-production-d18b.up.railway.app
+- Bot: @твій_бот_username
+- Docs: https://financetracker-production-d18b.up.railway.app/docs
+  
 ---
 
 ## 👨‍💻 Author
 
 **Kostiantyn Shtoiko**
 - GitHub: [@Kostiantyn-Shtoiko](https://github.com/Kostiantyn-Shtoiko)
-- https://t.me/Finance_Tracker_3_Bot
 
 ---
 
