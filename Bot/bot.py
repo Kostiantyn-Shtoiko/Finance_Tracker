@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
@@ -155,6 +155,14 @@ async def add_transaction(token: str, data: dict):
                 "title": data.get("title"),
                 "date": data.get("date")
             }
+        )
+        return response.json()
+
+async def delete_transaction_api(token: str, transaction_id: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.delete(
+            f"{BASE_URL}/transactions/{transaction_id}",
+            headers={"Authorization": f"Bearer {token}"}
         )
         return response.json()
 
@@ -320,13 +328,55 @@ async def history_command(message: types.Message):
     text += "━━━━━━━━━━━━━━━━━━━━\n"
     for i, tx in enumerate(transactions, 1):
         emoji = "📈" if tx['type'] == "income" else "📉"
-        text += f"{i}. {emoji} {tx['title']}\n"
-        text += f"   📁 {tx['category']} | 💵 {tx['amount']:.2f}\n"
-        text += f"   📅 {tx['date']}\n\n"
-    text += "━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"Total: {len(transactions)} transactions"
+        text = (
+        f"{i}. {emoji} {tx['title']}\n"
+        f"   📁 {tx['category']} | 💵 {tx['amount']:.2f}\n"
+        f"   📅 {tx['date']}"
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🗑️ Delete",
+                    callback_data=f"delete_{tx['id']}"
+                )
+            ]
+        ])
+        await message.answer(text, reply_markup=keyboard)
 
-    await message.answer(text, reply_markup=get_main_keyboard())
+@dp.callback_query(lambda c: c.data.startswith("delete_"))
+async def delete_transaction(callback_query: types.CallbackQuery):
+    transaction_id = callback_query.data.replace("delete_", "")
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Yes", callback_data=f"confirm_delete_{transaction_id}"),
+            InlineKeyboardButton(text="❌ No", callback_data="cancel_delete")
+        ]
+    ])
+    await callback_query.message.answer(
+        "Are you sure you want to delete this transaction?",
+        reply_markup=keyboard
+    )
+    await callback_query.answer()
+
+@dp.callback_query(lambda c: c.data.startswith("confirm_delete_"))
+async def confirm_delete(callback_query: types.CallbackQuery):
+    transaction_id = callback_query.data.replace("confirm_delete_", "")
+    token = user_tokens.get(callback_query.from_user.id)
+    
+    result = await delete_transaction_api(token, transaction_id)
+    
+    if "success" in result:
+        await callback_query.message.answer("Transaction deleted! ✅")
+    else:
+        await callback_query.message.answer("Something went wrong! ❌")
+    
+    await callback_query.answer()
+
+@dp.callback_query(lambda c: c.data == "cancel_delete")
+async def cancel_delete(callback_query: types.CallbackQuery):
+    await callback_query.message.answer("Cancelled! ❌")
+    await callback_query.answer()
 
 # ══════════════════════════════════════
 #              ADD TRANSACTION
