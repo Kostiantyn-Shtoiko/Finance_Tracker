@@ -312,8 +312,10 @@ async def balance_command(message: types.Message):
 #              HISTORY
 # ══════════════════════════════════════
 
+ITEMS_PER_PAGE = 5
+
 @dp.message(F.text == "📊 History")
-async def history_command(message: types.Message):
+async def history_command(message: types.Message, state: FSMContext):
     token = user_tokens.get(message.from_user.id)
     if not token:
         await message.answer("Please login first! 🔑")
@@ -323,25 +325,58 @@ async def history_command(message: types.Message):
     if not transactions:
         await message.answer("No transactions found 📭", reply_markup=get_main_keyboard())
         return
+    
+    await state.update_data(transactions=transactions, page=0)
+    await show_history_page(message, transactions, page=0)
 
-    text = "📊 Your Transaction History:\n"
+async def show_history_page(message_or_callback, transactions, page):
+    total_pages = (len(transactions) - 1) // ITEMS_PER_PAGE + 1
+    start = page * ITEMS_PER_PAGE
+    end = start + ITEMS_PER_PAGE
+    page_transactions = transactions[start:end]
+    
+    text = f"📊 History (Page {page + 1}/{total_pages})\n"
     text += "━━━━━━━━━━━━━━━━━━━━\n"
-    for i, tx in enumerate(transactions, 1):
+    
+    for i, tx in enumerate(page_transactions, start + 1):
         emoji = "📈" if tx['type'] == "income" else "📉"
-        text = (
-        f"{i}. {emoji} {tx['title']}\n"
-        f"   📁 {tx['category']} | 💵 {tx['amount']:.2f}\n"
-        f"   📅 {tx['date']}"
-        )
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="🗑️ Delete",
-                    callback_data=f"delete_{tx['id']}"
-                )
-            ]
-        ])
-        await message.answer(text, reply_markup=keyboard)
+        text += f"{i}. {emoji} {tx['title']} | {tx['amount']:.2f}\n"
+
+    keyboard_rows = []
+    for tx in page_transactions:
+        keyboard_rows.append([
+            InlineKeyboardButton(
+                text=f"🗑️ Delete: {tx['title']}", 
+                callback_data=f"delete_{tx['id']}"
+            )
+    ])
+
+    buttons = []
+    if page > 0:
+        buttons.append(InlineKeyboardButton(text="◀️ Prev", callback_data=f"page_{page-1}"))
+    if page < total_pages - 1:
+        buttons.append(InlineKeyboardButton(text="▶️ Next", callback_data=f"page_{page+1}"))
+    
+    if buttons:
+        keyboard_rows.append(buttons)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows) if keyboard_rows else None
+
+    if isinstance(message_or_callback, types.CallbackQuery):
+        await message_or_callback.message.answer(text, reply_markup=keyboard)
+    else:
+        await message_or_callback.answer(text, reply_markup=keyboard)
+
+@dp.callback_query(lambda c: c.data.startswith("page_"))
+async def change_page(callback_query: types.CallbackQuery, state: FSMContext):
+    page = int(callback_query.data.replace("page_", ""))
+    
+    data = await state.get_data()
+    transactions = data.get("transactions")
+    
+    await state.update_data(page=page)
+    await show_history_page(callback_query, transactions, page)
+    await callback_query.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("delete_"))
 async def delete_transaction(callback_query: types.CallbackQuery):
