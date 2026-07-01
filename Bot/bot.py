@@ -334,38 +334,45 @@ async def show_history_page(message_or_callback, transactions, page):
     start = page * ITEMS_PER_PAGE
     end = start + ITEMS_PER_PAGE
     page_transactions = transactions[start:end]
+
+    header = f"📊 History (Page {page + 1}/{total_pages})\n━━━━━━━━━━━━━━━━━━━━"
     
-    text = f"📊 History (Page {page + 1}/{total_pages})\n"
-    text += "━━━━━━━━━━━━━━━━━━━━\n"
-    
+    if isinstance(message_or_callback, types.CallbackQuery):
+        await message_or_callback.message.answer(header)
+    else:
+        await message_or_callback.answer(header)
+
     for i, tx in enumerate(page_transactions, start + 1):
         emoji = "📈" if tx['type'] == "income" else "📉"
-        text += f"{i}. {emoji} {tx['title']} | {tx['amount']:.2f}\n"
+        text = (
+            f"{i}. {emoji} {tx['title']}\n"
+            f"   📁 {tx['category']} | 💵 {tx['amount']:.2f}\n"
+            f"   📅 {tx['date']}"
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🗑️ Delete", callback_data=f"delete_{tx['id']}"),
+                InlineKeyboardButton(text="✏️ Edit", callback_data=f"edit_{tx['id']}")
+            ]
+        ])
+        if isinstance(message_or_callback, types.CallbackQuery):
+            await message_or_callback.message.answer(text, reply_markup=keyboard)
+        else:
+            await message_or_callback.answer(text, reply_markup=keyboard)
 
-    keyboard_rows = []
-    for tx in page_transactions:
-        keyboard_rows.append([
-            InlineKeyboardButton(
-                text=f"🗑️ Delete: {tx['title']}", 
-                callback_data=f"delete_{tx['id']}"
-            )
-    ])
-
+    # Навігація Prev/Next
     buttons = []
     if page > 0:
         buttons.append(InlineKeyboardButton(text="◀️ Prev", callback_data=f"page_{page-1}"))
     if page < total_pages - 1:
         buttons.append(InlineKeyboardButton(text="▶️ Next", callback_data=f"page_{page+1}"))
-    
+
     if buttons:
-        keyboard_rows.append(buttons)
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows) if keyboard_rows else None
-
-    if isinstance(message_or_callback, types.CallbackQuery):
-        await message_or_callback.message.answer(text, reply_markup=keyboard)
-    else:
-        await message_or_callback.answer(text, reply_markup=keyboard)
+        nav_keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons])
+        if isinstance(message_or_callback, types.CallbackQuery):
+            await message_or_callback.message.answer("━━━━━━━━━━━━━━━━━━━━", reply_markup=nav_keyboard)
+        else:
+            await message_or_callback.answer("━━━━━━━━━━━━━━━━━━━━", reply_markup=nav_keyboard)
 
 @dp.callback_query(lambda c: c.data.startswith("page_"))
 async def change_page(callback_query: types.CallbackQuery, state: FSMContext):
