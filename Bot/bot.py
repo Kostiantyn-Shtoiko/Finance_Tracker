@@ -14,6 +14,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
+# BASE_URL = os.getenv("BASE_URL", "http://api:8000")
 
 # ══════════════════════════════════════
 #              STATES
@@ -60,7 +61,8 @@ def get_main_keyboard():
                 KeyboardButton(text="➕ Add Transaction")
             ],
             [
-                KeyboardButton(text="📊 History")
+                KeyboardButton(text="📊 History"),
+                KeyboardButton(text="ℹ️ Help")
             ]
         ],
         resize_keyboard=True
@@ -97,6 +99,17 @@ def get_category_keyboard():
             ],
             [
                 KeyboardButton(text="❌ Cancel")
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+
+def get_back_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="⬅️ Back")
             ]
         ],
         resize_keyboard=True
@@ -187,6 +200,17 @@ async def cancel_handler(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         "❌ Cancelled. Choose an option:",
+        reply_markup=get_main_keyboard()
+    )
+
+# ══════════════════════════════════════
+#              BACK
+# ══════════════════════════════════════
+
+@dp.message(F.text == "⬅️ Back")
+async def back_handler(message: types.Message):
+    await message.answer(
+        "🏠 Main Menu",
         reply_markup=get_main_keyboard()
     )
 
@@ -503,6 +527,27 @@ async def add_transaction_date(message: types.Message, state: FSMContext):
         await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
 
     await state.clear()
+
+
+# ══════════════════════════════════════
+#              HELP
+# ══════════════════════════════════════
+
+@dp.message(F.text == "ℹ️ Help")
+async def help_command(message: types.Message):
+    await message.answer(
+        "ℹ️ Finance Tracker Help\n━━━━━━━━━━━━━━━━━━━━\n " +
+        "📝 Register — create a new account\n" +
+        "🔑 Login — login to your account\n" +
+        "💰 Balance — view your balance\n" +
+        "➕ Add Transaction — add income or expense\n" +
+        "📊 History — view your transactions\n" +
+        "❌ Cancel — cancel current action\n" +
+        "\n━━━━━━━━━━━━━━━━━━━━\n" +
+        "💡 Tip: Use the menu buttons below!",
+        reply_markup=get_back_keyboard()
+    )
+
 
 # ══════════════════════════════════════
 #              MAIN
