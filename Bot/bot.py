@@ -179,6 +179,14 @@ async def delete_transaction_api(token: str, transaction_id: str):
         )
         return response.json()
 
+async def get_me(token: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/auth/me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+
 # ══════════════════════════════════════
 #              START
 # ══════════════════════════════════════
@@ -242,7 +250,9 @@ async def login_password(message: types.Message, state: FSMContext):
 
     if "token" in result:
         user_tokens[message.from_user.id] = result["token"]
-        await message.answer("Logged in! ✅", reply_markup=get_main_keyboard())
+        profile = await get_me(result["token"])
+        name = profile.get("first_name", "Friend")
+        await message.answer(f"Welcome back, {name}! 👋✅", reply_markup=get_main_keyboard())
     else:
         await message.answer("Wrong phone or password! ❌", reply_markup=get_main_keyboard())
 

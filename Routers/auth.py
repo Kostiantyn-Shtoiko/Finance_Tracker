@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from Models.models import ProfileModel
 from Schemas.schemas import ProfileLoginSchema, ProfileRegisterSchema
-from Core.security import hash_password, verify_password, create_token
+from Core.security import get_current_user, hash_password, verify_password, create_token
 from Database.db import SessionDep
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -56,3 +56,11 @@ async def login(data: ProfileLoginSchema, session: SessionDep):
     
     # 5. return token
     return {"token": token}
+
+@router.get("/me", tags=["Auth"])
+async def get_me(session: SessionDep, user: ProfileModel = Depends(get_current_user)):
+    return {
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone": user.phone
+    }
