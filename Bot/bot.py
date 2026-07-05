@@ -355,13 +355,39 @@ async def history_command(message: types.Message, state: FSMContext):
         await message.answer("Please login first! 🔑")
         return
 
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📋 All", callback_data="filter_all"),
+            InlineKeyboardButton(text="💰 Income", callback_data="filter_income"),
+            InlineKeyboardButton(text="💸 Expense", callback_data="filter_expense")
+        ]
+    ])
+    await message.answer("Choose filter:", reply_markup=keyboard)
+
+@dp.callback_query(lambda c: c.data.startswith("filter_"))
+async def filter_history(callback_query: types.CallbackQuery, state: FSMContext):
+    filter_type = callback_query.data.replace("filter_", "")
+    token = user_tokens.get(callback_query.from_user.id)
+    
     transactions = await get_transactions(token)
-    if not transactions:
-        await message.answer("No transactions found 📭", reply_markup=get_main_keyboard())
+    
+    # Фільтруємо!
+    if filter_type == "income":
+        filtered = [tx for tx in transactions if tx['type'] == "income"]
+    elif filter_type == "expense":
+        filtered = [tx for tx in transactions if tx['type'] == "expense"]
+    else:
+        filtered = transactions  # all
+    
+    if not filtered:
+        await callback_query.message.answer("No transactions found! 📭")
+        await callback_query.answer()
         return
     
-    await state.update_data(transactions=transactions, page=0)
-    await show_history_page(message, transactions, page=0)
+    await state.update_data(transactions=filtered, page=0)
+    await show_history_page(callback_query, filtered, page=0)
+    await callback_query.answer()
+
 
 async def show_history_page(message_or_callback, transactions, page):
     total_pages = (len(transactions) - 1) // ITEMS_PER_PAGE + 1
