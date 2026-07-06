@@ -540,21 +540,51 @@ async def add_transaction_category(message: types.Message, state: FSMContext):
 @dp.message(AddTransactionStates.waiting_for_title)
 async def add_transaction_title(message: types.Message, state: FSMContext):
     await state.update_data(title=message.text)
-    await message.answer("Please enter the date (YYYY-MM-DD):\nExample: 2024-01-15")
+    keyboard = ReplyKeyboardMarkup(keyboard=[
+        [
+            KeyboardButton(text="📅 Today"),
+            KeyboardButton(text="✏️ Enter manually")
+        ],
+    ], 
+    resize_keyboard=True
+    )
+    
+    await message.answer("Choose date:", reply_markup=keyboard)
     await state.set_state(AddTransactionStates.waiting_for_date)
+
+@dp.message(F.text.in_(["📅 Today", "✏️ Enter manually"]), AddTransactionStates.waiting_for_date)
+async def choose_date(message: types.Message, state: FSMContext):
+    if message.text == "📅 Today":
+        today = datetime.now().strftime("%Y-%m-%d")
+        await state.update_data(date=today)
+        
+        data = await state.get_data()
+        token = user_tokens.get(message.from_user.id)
+        result = await add_transaction(token, data)
+        
+        if "success" in result:
+            await message.answer("Transaction added! ✅", reply_markup=get_main_keyboard())
+        else:
+            await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+        
+        await state.clear()
+    else:
+        await message.answer(
+            "Enter date (YYYY-MM-DD):\nExample: 2024-01-15",
+            reply_markup=ReplyKeyboardRemove()
+        )
 
 @dp.message(AddTransactionStates.waiting_for_date)
 async def add_transaction_date(message: types.Message, state: FSMContext):
     try:
         datetime.strptime(message.text, "%Y-%m-%d")
     except ValueError:
-        await message.answer("❌ Wrong format! Use: YYYY-MM-DD\nExample: 2024-01-15")
+        await message.answer("❌ Wrong format! Use: YYYY-MM-DD")
         return
 
     await state.update_data(date=message.text)
     data = await state.get_data()
     token = user_tokens.get(message.from_user.id)
-
     result = await add_transaction(token, data)
 
     if "success" in result:
