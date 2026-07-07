@@ -115,6 +115,14 @@ def get_back_keyboard():
         resize_keyboard=True
     )
 
+def get_skip_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="⏭ Skip")]
+        ],
+        resize_keyboard=True
+    )
+
 # ══════════════════════════════════════
 #              API FUNCTIONS
 # ══════════════════════════════════════
@@ -531,15 +539,19 @@ async def add_transaction_amount(message: types.Message, state: FSMContext):
 async def add_transaction_category(message: types.Message, state: FSMContext):
     category = message.text.split(" ", 1)[1].lower()  # "🍔 Food" → "food"
     await state.update_data(category=category)
+
     await message.answer(
-        "Please enter the title:",
-        reply_markup=ReplyKeyboardRemove()
+        "📝 Enter a title\n\n"
+        "Or press ⏭ Skip if you don't want to add one.",
+        reply_markup=get_skip_keyboard()
     )
+
     await state.set_state(AddTransactionStates.waiting_for_title)
 
 @dp.message(AddTransactionStates.waiting_for_title)
 async def add_transaction_title(message: types.Message, state: FSMContext):
-    await state.update_data(title=message.text)
+    title = "" if message.text == "⏭ Skip" else message.text
+    await state.update_data(title=title)
     keyboard = ReplyKeyboardMarkup(keyboard=[
         [
             KeyboardButton(text="📅 Today"),
