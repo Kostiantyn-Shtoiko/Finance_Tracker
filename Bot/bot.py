@@ -123,6 +123,16 @@ def get_skip_keyboard():
         resize_keyboard=True
     )
 
+def get_auth_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="📝 Register"),
+                KeyboardButton(text="🔑 Login")
+            ]
+        ],
+        resize_keyboard=True
+    )
 # ══════════════════════════════════════
 #              API FUNCTIONS
 # ══════════════════════════════════════
@@ -336,7 +346,8 @@ async def register_password(message: types.Message, state: FSMContext):
 async def balance_command(message: types.Message):
     token = user_tokens.get(message.from_user.id)
     if not token:
-        await message.answer("Please login first! 🔑")
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+    reply_markup=get_auth_keyboard())
         return
 
     balance = await get_balance(token)
@@ -360,7 +371,8 @@ ITEMS_PER_PAGE = 5
 async def history_command(message: types.Message, state: FSMContext):
     token = user_tokens.get(message.from_user.id)
     if not token:
-        await message.answer("Please login first! 🔑")
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+    reply_markup=get_auth_keyboard())
         return
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -496,7 +508,8 @@ async def cancel_delete(callback_query: types.CallbackQuery):
 async def add_transaction_start(message: types.Message, state: FSMContext):
     token = user_tokens.get(message.from_user.id)
     if not token:
-        await message.answer("Please login first! 🔑")
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+                            reply_markup=get_auth_keyboard())
         return
     await message.answer(
         "Choose transaction type:",
