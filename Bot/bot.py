@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 import asyncio
 import httpx
+import re
 
 load_dotenv()
 
@@ -29,6 +30,7 @@ class RegisterStates(StatesGroup):
     waiting_for_first_name = State()
     waiting_for_phone = State()
     waiting_for_password = State()
+    waiting_for_weak_password_confirmation = State()
 
 class AddTransactionStates(StatesGroup):
     waiting_for_type = State()
@@ -129,6 +131,17 @@ def get_auth_keyboard():
             [
                 KeyboardButton(text="📝 Register"),
                 KeyboardButton(text="🔑 Login")
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def get_password_warning_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="✅ Keep password"),
+                KeyboardButton(text="🔄 Change password")
             ]
         ],
         resize_keyboard=True
@@ -314,29 +327,101 @@ async def register_phone(message: types.Message, state: FSMContext):
 
 @dp.message(RegisterStates.waiting_for_password)
 async def register_password(message: types.Message, state: FSMContext):
-    if len(message.text) < 6:
-        await message.answer("❌ Password too short! Minimum 6 characters!")
-        return
-    if len(message.text) > 120:
-        await message.answer("❌ Password too long! Maximum 120 characters!")
+    password = message.text
+
+    if not is_strong_password(password):
+        await state.update_data(password=password)
+
+        await message.answer(
+            "⚠️ Weak password!\n\n"
+            "Your password should contain:\n"
+            "• At least 8 characters\n"
+            "• One uppercase letter\n"
+            "• One lowercase letter\n"
+            "• One number\n\n"
+            "Do you want to keep this password?",
+            reply_markup=get_password_warning_keyboard()
+        )
+
+        await state.set_state(RegisterStates.waiting_for_weak_password_confirmation)
         return
 
-    await state.update_data(password=message.text)
+    await state.update_data(password=password)
+
     data = await state.get_data()
-
     result = await register_user(
-        data.get("last_name"),
-        data.get("first_name"),
-        data.get("phone"),
-        data.get("password")
+        data["last_name"],
+        data["first_name"],
+        data["phone"],
+        data["password"]
     )
 
-    if "success" in result:
-        await message.answer("Registration complete! ✅", reply_markup=get_main_keyboard())
+    if result.get("success"):
+        await message.answer(
+            "Registration successful! 🎉",
+            reply_markup=get_main_keyboard()
+        )
+        await state.clear()
     else:
-        await message.answer("Registration failed! ❌", reply_markup=get_main_keyboard())
+        await message.answer(
+            f"Registration failed: {result.get('detail', 'Unknown error')}",
+            reply_markup=get_main_keyboard()
+        )
+        await state.clear()
 
-    await state.clear()
+def is_strong_password(password: str) -> bool:
+    if len(password) < 8:
+        return False
+
+    if " " in password:
+        return False
+
+    if not re.search(r"[A-Z]", password):
+        return False
+
+    if not re.search(r"[a-z]", password):
+        return False
+
+    if not re.search(r"\d", password):
+        return False
+
+    return True
+
+@dp.message(RegisterStates.waiting_for_weak_password_confirmation)
+async def weak_password_confirmation(message: types.Message, state: FSMContext):
+    if message.text == "🔄 Change password":
+        await message.answer(
+            "Enter a new password:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(RegisterStates.waiting_for_password)
+        return
+
+    if message.text == "✅ Keep password":
+        data = await state.get_data()
+
+        result = await register_user(
+            data["last_name"],
+            data["first_name"],
+            data["phone"],
+            data["password"]
+        )
+
+        if result.get("success"):
+            await message.answer(
+                "Registration successful! 🎉",
+                reply_markup=get_main_keyboard()
+            )
+        else:
+            await message.answer(
+                f"Registration failed: {result.get('detail', 'Unknown error')}",
+                reply_markup=get_main_keyboard()
+            )
+
+        await state.clear()
+        return
+
+    await message.answer("Please choose one of the buttons.")
 
 # ══════════════════════════════════════
 #              BALANCE
