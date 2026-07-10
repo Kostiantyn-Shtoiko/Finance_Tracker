@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BotCommand
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
@@ -257,6 +257,7 @@ async def back_handler(message: types.Message):
 #              LOGIN
 # ══════════════════════════════════════
 
+@dp.message(Command("login"))
 @dp.message(F.text == "🔑 Login")
 async def login_start(message: types.Message, state: FSMContext):
     await message.answer(
@@ -293,6 +294,7 @@ async def login_password(message: types.Message, state: FSMContext):
 #              REGISTER
 # ══════════════════════════════════════
 
+@dp.message(Command("register"))
 @dp.message(F.text == "📝 Register")
 async def register_start(message: types.Message, state: FSMContext):
     await message.answer(
@@ -427,6 +429,7 @@ async def weak_password_confirmation(message: types.Message, state: FSMContext):
 #              BALANCE
 # ══════════════════════════════════════
 
+@dp.message(Command("balance"))
 @dp.message(F.text == "💰 Balance")
 async def balance_command(message: types.Message):
     token = user_tokens.get(message.from_user.id)
@@ -452,6 +455,7 @@ async def balance_command(message: types.Message):
 
 ITEMS_PER_PAGE = 5
 
+@dp.message(Command("history"))
 @dp.message(F.text == "📊 History")
 async def history_command(message: types.Message, state: FSMContext):
     token = user_tokens.get(message.from_user.id)
@@ -588,6 +592,7 @@ async def cancel_delete(callback_query: types.CallbackQuery):
 #              ADD TRANSACTION
 # ══════════════════════════════════════
 
+@dp.message(Command("add"))
 @dp.message(F.text == "➕ Add Transaction")
 async def add_transaction_start(message: types.Message, state: FSMContext):
     token = user_tokens.get(message.from_user.id)
@@ -716,6 +721,7 @@ async def add_transaction_date(message: types.Message, state: FSMContext):
 #              HELP
 # ══════════════════════════════════════
 
+@dp.message(Command("help"))
 @dp.message(F.text == "ℹ️ Help")
 async def help_command(message: types.Message):
     await message.answer(
@@ -736,7 +742,20 @@ async def help_command(message: types.Message):
 #              MAIN
 # ══════════════════════════════════════
 
+async def set_commands():
+    commands = [
+        BotCommand(command="start", description="Start bot"),
+        BotCommand(command="help", description="Show help"),
+        BotCommand(command="register", description="Register"),
+        BotCommand(command="login", description="Login"),
+        BotCommand(command="balance", description="Show balance"),
+        BotCommand(command="history", description="Transaction history"),
+        BotCommand(command="add", description="Add transaction"),
+    ]
+    await bot.set_my_commands(commands)
+
 async def main():
+    await set_commands()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
