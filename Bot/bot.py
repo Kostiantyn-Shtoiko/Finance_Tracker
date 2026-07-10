@@ -525,7 +525,6 @@ async def show_history_page(message_or_callback, transactions, page):
         else:
             await message_or_callback.answer(text, reply_markup=keyboard)
 
-    # Навігація Prev/Next
     buttons = []
     if page > 0:
         buttons.append(InlineKeyboardButton(text="◀️ Prev", callback_data=f"page_{page-1}"))
@@ -673,7 +672,11 @@ async def choose_date(message: types.Message, state: FSMContext):
         result = await add_transaction(token, data)
         
         if "success" in result:
-            await message.answer("Transaction added! ✅", reply_markup=get_main_keyboard())
+            token = user_tokens.get(message.from_user.id)
+            balance = await get_balance(token) 
+            await message.answer(f"Transaction added! ✅\n"
+                                 f"You balance has been updated 💰: {balance['balance']:.2f}", 
+                                 reply_markup=get_main_keyboard())
         else:
             await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
         
@@ -698,7 +701,11 @@ async def add_transaction_date(message: types.Message, state: FSMContext):
     result = await add_transaction(token, data)
 
     if "success" in result:
-        await message.answer("Transaction added! ✅", reply_markup=get_main_keyboard())
+        token = user_tokens.get(message.from_user.id)
+        balance = await get_balance(token) 
+        await message.answer(f"Transaction added! ✅\n"
+                                 f"You balance has been updated 💰: {balance['balance']:.2f}", 
+                                 reply_markup=get_main_keyboard())
     else:
         await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
 
