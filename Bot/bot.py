@@ -65,6 +65,9 @@ def get_main_keyboard():
             [
                 KeyboardButton(text="📊 History"),
                 KeyboardButton(text="ℹ️ Help")
+            ],
+            [
+                KeyboardButton(text="👤 Profile"),
             ]
         ],
         resize_keyboard=True
@@ -142,6 +145,43 @@ def get_password_warning_keyboard():
             [
                 KeyboardButton(text="✅ Keep password"),
                 KeyboardButton(text="🔄 Change password")
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def get_profile_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [   
+                KeyboardButton(text="📊 Statistics"),
+                KeyboardButton(text="⚙️ Settings")
+            ],
+            [   
+                KeyboardButton(text="ℹ️ About"),
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def get_settings_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="✏️ Edit Name"),
+                KeyboardButton(text="🔑 Change Password")
+            ],
+            [
+                KeyboardButton(text="📱 Change Phone"),
+                KeyboardButton(text="✏️ Edit Categories")
+            ],
+            [
+                KeyboardButton(text="🌍 Change Language"),
+                KeyboardButton(text="🔔 Reminder time")
+            ],
+            [
+                KeyboardButton(text="🚪 Logout"),
+                KeyboardButton(text="🗑 Delete Account"),
             ]
         ],
         resize_keyboard=True
@@ -716,6 +756,51 @@ async def add_transaction_date(message: types.Message, state: FSMContext):
 
     await state.clear()
 
+# ══════════════════════════════════════
+#              Settings
+# ══════════════════════════════════════
+
+@dp.message(Command("settings"))
+@dp.message(F.text == "⚙️ Settings")
+
+async def settings_command(message: types.Message):
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+                            reply_markup=get_auth_keyboard())
+        return
+    
+    await message.answer(
+        "⚙️ Settings Menu",
+        reply_markup=get_settings_keyboard()
+    )
+# ══════════════════════════════════════
+#              Profile
+# ══════════════════════════════════════
+
+@dp.message(Command("profile"))
+@dp.message(F.text == "👤 Profile")
+
+async def profile_command(message: types.Message, state: FSMContext):
+
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+                            reply_markup=get_auth_keyboard())
+        return
+    
+    user_info = await get_me(token) 
+    await message.answer(
+        f"👋 Welcome {user_info['first_name']} {user_info['last_name']}!\n")
+    
+    balance = await get_balance(token)
+    text = (
+        f"👤 Profile\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"💵 Balance:  {balance['balance']:.2f}\n"
+        f"━━━━━━━━━━━━━━━\n"
+    )
+    await message.answer(text, reply_markup=get_profile_keyboard())
 
 # ══════════════════════════════════════
 #              HELP
@@ -745,12 +830,14 @@ async def help_command(message: types.Message):
 async def set_commands():
     commands = [
         BotCommand(command="start", description="Start bot"),
+        BotCommand(command="profile", description="Show profile"),
         BotCommand(command="help", description="Show help"),
         BotCommand(command="register", description="Register"),
         BotCommand(command="login", description="Login"),
         BotCommand(command="balance", description="Show balance"),
         BotCommand(command="history", description="Transaction history"),
         BotCommand(command="add", description="Add transaction"),
+        BotCommand(command="settings", description="Show settings"),
     ]
     await bot.set_my_commands(commands)
 
