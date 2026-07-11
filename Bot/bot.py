@@ -1,3 +1,4 @@
+from email.mime import message
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BotCommand
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
@@ -38,6 +39,10 @@ class AddTransactionStates(StatesGroup):
     waiting_for_category = State()
     waiting_for_title = State()
     waiting_for_date = State()
+
+class EditNameStates(StatesGroup):
+    waiting_for_first_name = State()
+    waiting_for_last_name = State()
 
 # ══════════════════════════════════════
 #              BOT & DISPATCHER
@@ -159,6 +164,9 @@ def get_profile_keyboard():
             ],
             [   
                 KeyboardButton(text="ℹ️ About"),
+            ],
+            [   
+                KeyboardButton(text="⬅️ Back"),
             ]
         ],
         resize_keyboard=True
@@ -182,6 +190,20 @@ def get_settings_keyboard():
             [
                 KeyboardButton(text="🚪 Logout"),
                 KeyboardButton(text="🗑 Delete Account"),
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def get_edit_name_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="✏️ Edit First Name"),
+                KeyboardButton(text="✏️ Edit Last Name")
+            ],
+            [
+                KeyboardButton(text="⬅️ Back")
             ]
         ],
         resize_keyboard=True
@@ -258,6 +280,17 @@ async def get_me(token: str):
         )
         return response.json()
 
+async def update_profile_api(token: str, first_name: str = None, last_name: str = None):
+    async with httpx.AsyncClient() as client:
+        response = await client.put(
+            f"{BASE_URL}/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "first_name": first_name,
+                "last_name": last_name
+            }
+        )
+        return response.json()
 # ══════════════════════════════════════
 #              START
 # ══════════════════════════════════════
@@ -803,8 +836,78 @@ async def profile_command(message: types.Message, state: FSMContext):
     await message.answer(text, reply_markup=get_profile_keyboard())
 
 # ══════════════════════════════════════
-#              HELP
+#            Edit Name
 # ══════════════════════════════════════
+
+@dp.message(F.text == "✏️ Edit Name")
+async def edit_name_command(message: types.Message):
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+                            reply_markup=get_auth_keyboard())
+        return
+    
+    user_info = await get_me(token) 
+    await message.answer(
+        f"👋 Welcome {user_info['first_name']} {user_info['last_name']}!\n"
+        f" What do you want to replace?\n",
+        reply_markup=get_edit_name_keyboard()
+    )
+
+@dp.message(F.text == "✏️ Edit First Name")
+async def edit_first_name_command(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Enter new first name:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(EditNameStates.waiting_for_first_name)
+
+@dp.message(EditNameStates.waiting_for_first_name)
+async def save_first_name(message: types.Message, state: FSMContext):
+
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+                            reply_markup=get_auth_keyboard())
+        return
+
+    result = await update_profile_api(token, first_name=message.text)
+    
+    if "success" in result:
+        await message.answer(f"✅ First name updated to: {message.text}!", reply_markup=get_main_keyboard())
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+    
+    await state.clear()
+
+@dp.message(F.text == "✏️ Edit Last Name")
+async def edit_last_name_command(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Enter new last name:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(EditNameStates.waiting_for_last_name)
+
+@dp.message(EditNameStates.waiting_for_last_name)
+async def save_last_name_command(message: types.Message, state: FSMContext):
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+                            reply_markup=get_auth_keyboard())
+        return
+
+    result = await update_profile_api(token, last_name=message.text)
+    
+    if "success" in result:
+        await message.answer(f"✅ Last name updated to: {message.text}!", reply_markup=get_main_keyboard())
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+    
+    await state.clear()
+
+# ══════════════════════════════════════
+#              HELP
+# ═════════════════════════════════════
 
 @dp.message(Command("help"))
 @dp.message(F.text == "ℹ️ Help")

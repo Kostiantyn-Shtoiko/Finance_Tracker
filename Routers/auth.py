@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from Models.models import ProfileModel
-from Schemas.schemas import ProfileLoginSchema, ProfileRegisterSchema
+from Schemas.schemas import ProfileLoginSchema, ProfileRegisterSchema, ProfileUpdateSchema
 from Core.security import get_current_user, hash_password, verify_password, create_token
 from Database.db import SessionDep
 
@@ -64,3 +64,16 @@ async def get_me(session: SessionDep, user: ProfileModel = Depends(get_current_u
         "last_name": user.last_name,
         "phone": user.phone
     }
+
+@router.put("/me", tags=["Auth"])
+async def update_profile(
+    data: ProfileUpdateSchema,
+    session: SessionDep,
+    user: ProfileModel = Depends(get_current_user)
+):
+    if data.first_name:
+        user.first_name = data.first_name
+    if data.last_name:
+        user.last_name = data.last_name
+    await session.commit()
+    return {"success": True}

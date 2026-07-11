@@ -34,3 +34,7 @@ class TransactionSchema(BaseModel):
     type: Literal["income", "expense"]
     date: str
 
+class ProfileUpdateSchema(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+
