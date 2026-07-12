@@ -40,9 +40,10 @@ class AddTransactionStates(StatesGroup):
     waiting_for_title = State()
     waiting_for_date = State()
 
-class EditNameStates(StatesGroup):
+class EditProfileStates(StatesGroup):
     waiting_for_first_name = State()
     waiting_for_last_name = State()
+    waiting_for_phone = State()
 
 # ══════════════════════════════════════
 #              BOT & DISPATCHER
@@ -280,14 +281,15 @@ async def get_me(token: str):
         )
         return response.json()
 
-async def update_profile_api(token: str, first_name: str = None, last_name: str = None):
+async def update_profile_api(token: str, first_name: str = None, last_name: str = None, phone: str = None):
     async with httpx.AsyncClient() as client:
         response = await client.put(
             f"{BASE_URL}/auth/me",
             headers={"Authorization": f"Bearer {token}"},
             json={
                 "first_name": first_name,
-                "last_name": last_name
+                "last_name": last_name,
+                "phone": phone
             }
         )
         return response.json()
@@ -836,6 +838,41 @@ async def profile_command(message: types.Message, state: FSMContext):
     await message.answer(text, reply_markup=get_profile_keyboard())
 
 # ══════════════════════════════════════
+#            Edit Phone
+# ══════════════════════════════════════
+@dp.message(F.text == "📱 Change Phone")
+async def edit_phone_command(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Enter new phone number:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(EditProfileStates.waiting_for_phone)
+
+@dp.message(EditProfileStates.waiting_for_phone)
+async def save_phone_command(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❌ Phone must contain only numbers! Try again:")
+        return
+    if not (10 <= len(message.text) <= 13):
+        await message.answer("❌ Phone must be 10-13 digits! Try again:")
+        return
+    
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ You are not logged in!\nPlease register or login:",
+                            reply_markup=get_auth_keyboard())
+        return
+
+    result = await update_profile_api(token, phone=message.text)
+
+    if "success" in result:
+        await message.answer(f"✅ Phone number updated to: {message.text}!", reply_markup=get_main_keyboard())
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+
+    await state.clear()
+
+# ══════════════════════════════════════
 #            Edit Name
 # ══════════════════════════════════════
 
@@ -860,9 +897,9 @@ async def edit_first_name_command(message: types.Message, state: FSMContext):
         "Enter new first name:",
         reply_markup=ReplyKeyboardRemove()
     )
-    await state.set_state(EditNameStates.waiting_for_first_name)
+    await state.set_state(EditProfileStates.waiting_for_first_name)
 
-@dp.message(EditNameStates.waiting_for_first_name)
+@dp.message(EditProfileStates.waiting_for_first_name)
 async def save_first_name(message: types.Message, state: FSMContext):
 
     token = user_tokens.get(message.from_user.id)
@@ -886,9 +923,9 @@ async def edit_last_name_command(message: types.Message, state: FSMContext):
         "Enter new last name:",
         reply_markup=ReplyKeyboardRemove()
     )
-    await state.set_state(EditNameStates.waiting_for_last_name)
+    await state.set_state(EditProfileStates.waiting_for_last_name)
 
-@dp.message(EditNameStates.waiting_for_last_name)
+@dp.message(EditProfileStates.waiting_for_last_name)
 async def save_last_name_command(message: types.Message, state: FSMContext):
     token = user_tokens.get(message.from_user.id)
     if not token:

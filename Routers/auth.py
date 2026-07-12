@@ -75,5 +75,7 @@ async def update_profile(
         user.first_name = data.first_name
     if data.last_name:
         user.last_name = data.last_name
+    if data.phone:
+        user.phone = data.phone
     await session.commit()
     return {"success": True}
