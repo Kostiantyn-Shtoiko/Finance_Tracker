@@ -44,6 +44,9 @@ class EditProfileStates(StatesGroup):
     waiting_for_first_name = State()
     waiting_for_last_name = State()
     waiting_for_phone = State()
+    waiting_for_old_password = State()
+    waiting_for_new_password = State()
+    waiting_for_weak_password_confirmation = State()
 
 # ══════════════════════════════════════
 #              BOT & DISPATCHER
@@ -281,7 +284,7 @@ async def get_me(token: str):
         )
         return response.json()
 
-async def update_profile_api(token: str, first_name: str = None, last_name: str = None, phone: str = None):
+async def update_profile_api(token: str, first_name: str = None, last_name: str = None, phone: str = None, password: str = None):
     async with httpx.AsyncClient() as client:
         response = await client.put(
             f"{BASE_URL}/auth/me",
@@ -289,7 +292,8 @@ async def update_profile_api(token: str, first_name: str = None, last_name: str 
             json={
                 "first_name": first_name,
                 "last_name": last_name,
-                "phone": phone
+                "phone": phone,
+                "password": password
             }
         )
         return response.json()
@@ -837,6 +841,85 @@ async def profile_command(message: types.Message, state: FSMContext):
     )
     await message.answer(text, reply_markup=get_profile_keyboard())
 
+# ══════════════════════════════════════
+#            Edit Password
+# ══════════════════════════════════════
+
+@dp.message(F.text == "🔑 Change Password")
+async def change_password_start(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Enter your current password:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(EditProfileStates.waiting_for_old_password)
+
+@dp.message(EditProfileStates.waiting_for_old_password)
+async def verify_old_password(message: types.Message, state: FSMContext):
+    token = user_tokens.get(message.from_user.id)
+    
+    profile = await get_me(token)
+    phone = profile.get("phone")
+    
+    result = await login_user(phone, message.text)
+    
+    if "token" not in result:
+        await message.answer("❌ Wrong password! Try again:")
+        return
+    
+    await message.answer("Enter new password:")
+    await state.set_state(EditProfileStates.waiting_for_new_password)
+
+@dp.message(EditProfileStates.waiting_for_new_password)
+async def save_new_password(message: types.Message, state: FSMContext):
+    if not is_strong_password(message.text):
+        await state.update_data(password=message.text)
+        await message.answer(
+            "⚠️ Weak password!\n\n"
+            "• At least 8 characters\n"
+            "• One uppercase letter\n"
+            "• One lowercase letter\n"
+            "• One number\n\n"
+            "Do you want to keep this password?",
+            reply_markup=get_password_warning_keyboard()
+        )
+        await state.set_state(EditProfileStates.waiting_for_weak_password_confirmation)
+        return
+
+    token = user_tokens.get(message.from_user.id)
+    result = await update_profile_api(token, password=message.text)
+
+    if "success" in result:
+        await message.answer("✅ Password changed!", reply_markup=get_main_keyboard())
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+
+    await state.clear()
+
+@dp.message(EditProfileStates.waiting_for_weak_password_confirmation)
+async def weak_password_confirmation_edit(message: types.Message, state: FSMContext):
+    if message.text == "🔄 Change password":
+        await message.answer(
+            "Enter a new password:",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await state.set_state(EditProfileStates.waiting_for_new_password)
+        return
+
+    if message.text == "✅ Keep password":
+        data = await state.get_data()
+        token = user_tokens.get(message.from_user.id)
+        
+        result = await update_profile_api(token, password=data.get("password"))
+        
+        if "success" in result:
+            await message.answer("✅ Password changed!", reply_markup=get_main_keyboard())
+        else:
+            await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+        
+        await state.clear()
+        return
+
+    await message.answer("Please choose one of the buttons.")
 # ══════════════════════════════════════
 #            Edit Phone
 # ══════════════════════════════════════
