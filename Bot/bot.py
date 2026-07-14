@@ -1026,6 +1026,40 @@ async def save_last_name_command(message: types.Message, state: FSMContext):
     await state.clear()
 
 # ══════════════════════════════════════
+#             Logout
+# ══════════════════════════════════════
+@dp.message(F.text == "🚪 Logout")
+async def logout_command(message: types.Message):
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="✅ Yes, logout"),
+                KeyboardButton(text="❌ No, stay")
+            ]
+        ],
+        resize_keyboard=True
+    )
+    await message.answer(
+        "Are you sure you want to logout?",
+        reply_markup=keyboard
+    )
+
+@dp.message(F.text == "✅ Yes, logout")
+async def confirm_logout(message: types.Message, state: FSMContext):
+    user_tokens.pop(message.from_user.id, None)
+    await state.clear()
+    await message.answer(
+        "👋 Logged out successfully!",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(F.text == "❌ No, stay")
+async def cancel_logout(message: types.Message):
+    await message.answer(
+        "❌ Logout cancelled!",
+        reply_markup=get_main_keyboard()
+    )
+# ══════════════════════════════════════
 #              HELP
 # ═════════════════════════════════════
 
