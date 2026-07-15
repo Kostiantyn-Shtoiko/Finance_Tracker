@@ -81,3 +81,12 @@ async def update_profile(
         user.password = hash_password(data.password)
     await session.commit()
     return {"success": True}
+
+@router.delete("/me", tags=["Auth"])
+async def delete_account(
+    session: SessionDep,
+    user: ProfileModel = Depends(get_current_user)
+):
+    await session.delete(user)
+    await session.commit()
+    return {"success": True}

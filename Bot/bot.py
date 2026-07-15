@@ -297,6 +297,14 @@ async def update_profile_api(token: str, first_name: str = None, last_name: str 
             }
         )
         return response.json()
+    
+async def delete_account_api(token: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.delete(
+            f"{BASE_URL}/auth/me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
 # ══════════════════════════════════════
 #              START
 # ══════════════════════════════════════
@@ -1025,6 +1033,54 @@ async def save_last_name_command(message: types.Message, state: FSMContext):
     
     await state.clear()
 
+# ══════════════════════════════════════
+#             Delete Account
+# ══════════════════════════════════════
+@dp.message(F.text == "🗑 Delete Account")
+async def delete_account_start(message: types.Message):
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="✅ Yes, delete"),
+                KeyboardButton(text="❌ No, cancel")
+            ]
+        ],
+        resize_keyboard=True
+    )
+    await message.answer(
+        "⚠️ Are you sure?\n\n"
+        "This will permanently delete your account\n"
+        "and ALL your transactions!\n\n"
+        "This action CANNOT be undone! 🔴",
+        reply_markup=keyboard
+    )
+
+@dp.message(F.text == "✅ Yes, delete")
+async def confirm_delete_account(message: types.Message, state: FSMContext):
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ Not logged in!", reply_markup=get_auth_keyboard())
+        return
+    
+    result = await delete_account_api(token)
+    
+    if "success" in result:
+        user_tokens.pop(message.from_user.id, None)
+        await state.clear()
+        await message.answer(
+            "🗑 Account deleted successfully!\n"
+            "Sorry to see you go! 👋",
+            reply_markup=get_main_keyboard()
+        )
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+
+@dp.message(F.text == "❌ No, cancel")
+async def cancel_delete_account(message: types.Message):
+    await message.answer(
+        "❌ Cancelled!",
+        reply_markup=get_main_keyboard()
+    )
 # ══════════════════════════════════════
 #             Logout
 # ══════════════════════════════════════
