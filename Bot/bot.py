@@ -7,12 +7,15 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 from datetime import datetime
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import os
 import asyncio
 import httpx
 import re
 
 load_dotenv()
+scheduler = AsyncIOScheduler()
+user_reminders = {}
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
@@ -48,6 +51,8 @@ class EditProfileStates(StatesGroup):
     waiting_for_new_password = State()
     waiting_for_weak_password_confirmation = State()
 
+class ReminderStates(StatesGroup):
+    waiting_for_time = State()
 # ══════════════════════════════════════
 #              BOT & DISPATCHER
 # ══════════════════════════════════════
@@ -207,6 +212,21 @@ def get_edit_name_keyboard():
                 KeyboardButton(text="✏️ Edit Last Name")
             ],
             [
+                KeyboardButton(text="⬅️ Back")
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def get_reminder_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="➕ Add Reminder"),
+                KeyboardButton(text="📋 My Reminders")
+            ],
+            [
+                KeyboardButton(text="🗑️ Delete Reminder"),
                 KeyboardButton(text="⬅️ Back")
             ]
         ],
@@ -1081,6 +1101,97 @@ async def cancel_delete_account(message: types.Message):
         "❌ Cancelled!",
         reply_markup=get_main_keyboard()
     )
+
+# ══════════════════════════════════════
+#             Reminder Time
+# ══════════════════════════════════════
+@dp.message(F.text == "🔔 Reminder time")
+async def reminder_menu(message: types.Message):
+    await message.answer(
+        "🔔 Reminder Menu\n"
+        "Set a daily reminder to record your expenses!",
+        reply_markup=get_reminder_keyboard()
+    )
+
+@dp.message(F.text == "➕ Add Reminder")
+async def add_reminder_start(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Enter reminder time (HH:MM):\n"
+        "Example: 20:00",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(ReminderStates.waiting_for_time)
+
+@dp.message(ReminderStates.waiting_for_time)
+async def save_reminder(message: types.Message, state: FSMContext):
+    try:
+        time = datetime.strptime(message.text, "%H:%M")
+        hour = time.hour
+        minute = time.minute
+    except ValueError:
+        await message.answer("❌ Wrong format! Use HH:MM\nExample: 20:00")
+        return
+    
+    user_id = message.from_user.id
+    
+    
+    if user_id in user_reminders:
+        scheduler.remove_job(f"reminder_{user_id}")
+    
+    
+    user_reminders[user_id] = {"hour": hour, "minute": minute}
+    scheduler.add_job(
+        send_reminder,
+        trigger="cron",
+        hour=hour,
+        minute=minute,
+        id=f"reminder_{user_id}",
+        args=[user_id]
+    )
+    
+    await message.answer(
+        f"✅ Reminder set for {message.text} every day!",
+        reply_markup=get_main_keyboard()
+    )
+    await state.clear()
+
+async def send_reminder(user_id: int):
+    await bot.send_message(
+        user_id,
+        "🔔 Don't forget to record your expenses today! 💰\n"
+        "Press ➕ Add Transaction"
+    )
+
+@dp.message(F.text == "📋 My Reminders")
+async def my_reminders(message: types.Message):
+    user_id = message.from_user.id
+    
+    if user_id not in user_reminders:
+        await message.answer("No reminders set! 📭", reply_markup=get_reminder_keyboard())
+        return
+    
+    reminder = user_reminders[user_id]
+    await message.answer(
+        f"🔔 Your reminder:\n"
+        f"Every day at {reminder['hour']:02d}:{reminder['minute']:02d}",
+        reply_markup=get_reminder_keyboard()
+    )
+
+@dp.message(F.text == "🗑️ Delete Reminder")
+async def delete_reminder(message: types.Message):
+    user_id = message.from_user.id
+    
+    if user_id not in user_reminders:
+        await message.answer("No reminders to delete! 📭", reply_markup=get_reminder_keyboard())
+        return
+    
+    scheduler.remove_job(f"reminder_{user_id}")
+    del user_reminders[user_id]
+    
+    await message.answer(
+        "✅ Reminder deleted!",
+        reply_markup=get_reminder_keyboard()
+    )
 # ══════════════════════════════════════
 #             Logout
 # ══════════════════════════════════════
@@ -1155,6 +1266,7 @@ async def set_commands():
     await bot.set_my_commands(commands)
 
 async def main():
+    scheduler.start()
     await set_commands()
     await dp.start_polling(bot)
 
