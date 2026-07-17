@@ -17,8 +17,8 @@ load_dotenv()
 
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-# BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
-BASE_URL = os.getenv("BASE_URL", "http://api:8000")
+BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
+# BASE_URL = os.getenv("BASE_URL", "http://api:8000")
 
 # ══════════════════════════════════════
 #              STATES
