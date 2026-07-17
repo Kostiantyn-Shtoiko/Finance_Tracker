@@ -14,12 +14,11 @@ import httpx
 import re
 
 load_dotenv()
-scheduler = AsyncIOScheduler()
-user_reminders = {}
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
-# BASE_URL = os.getenv("BASE_URL", "http://api:8000")
+# BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
+BASE_URL = os.getenv("BASE_URL", "http://api:8000")
 
 # ══════════════════════════════════════
 #              STATES
@@ -53,6 +52,7 @@ class EditProfileStates(StatesGroup):
 
 class ReminderStates(StatesGroup):
     waiting_for_time = State()
+    waiting_for_timezone = State()
 # ══════════════════════════════════════
 #              BOT & DISPATCHER
 # ══════════════════════════════════════
@@ -61,6 +61,17 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 user_tokens = {}
 
+scheduler = AsyncIOScheduler()
+user_reminders = {}
+
+TIMEZONES = {
+    "🇺🇦 Kyiv (UTC+3)": "Europe/Kyiv",
+    "🇭🇷 Zagreb (UTC+2)": "Europe/Zagreb",
+    "🇬🇧 London (UTC+1)": "Europe/London",
+    "🌍 Other (UTC+0)": "UTC"
+}
+
+user_timezones = {}
 # ══════════════════════════════════════
 #              KEYBOARDS
 # ══════════════════════════════════════
@@ -228,6 +239,24 @@ def get_reminder_keyboard():
             [
                 KeyboardButton(text="🗑️ Delete Reminder"),
                 KeyboardButton(text="⬅️ Back")
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def get_timezone_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="🇺🇦 Kyiv (UTC+3)"),
+                KeyboardButton(text="🇭🇷 Zagreb (UTC+2)")
+            ],
+            [
+                KeyboardButton(text="🇬🇧 London (UTC+1)"),
+                KeyboardButton(text="🌍 Other (UTC+0)")
+            ],
+            [
+                KeyboardButton(text="❌ Cancel")
             ]
         ],
         resize_keyboard=True
@@ -1116,8 +1145,21 @@ async def reminder_menu(message: types.Message):
 @dp.message(F.text == "➕ Add Reminder")
 async def add_reminder_start(message: types.Message, state: FSMContext):
     await message.answer(
-        "Enter reminder time (HH:MM):\n"
-        "Example: 20:00",
+        "First, choose your timezone:",
+        reply_markup=get_timezone_keyboard()
+    )
+    await state.set_state(ReminderStates.waiting_for_timezone)
+
+@dp.message(F.text.in_(TIMEZONES.keys()), ReminderStates.waiting_for_timezone)
+async def save_timezone(message: types.Message, state: FSMContext):
+    timezone = TIMEZONES[message.text]
+    user_timezones[message.from_user.id] = timezone
+    await state.update_data(timezone=timezone)
+    
+    await message.answer(
+        f"✅ Timezone set!\n\n"
+        f"Now enter reminder time (HH:MM):\n"
+        f"Example: 20:00",
         reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(ReminderStates.waiting_for_time)
@@ -1133,34 +1175,38 @@ async def save_reminder(message: types.Message, state: FSMContext):
         return
     
     user_id = message.from_user.id
-    
+    data = await state.get_data()
+    timezone = data.get("timezone", "UTC")
     
     if user_id in user_reminders:
-        scheduler.remove_job(f"reminder_{user_id}")
+        try:
+            scheduler.remove_job(f"reminder_{user_id}")
+        except:
+            pass
     
-    
-    user_reminders[user_id] = {"hour": hour, "minute": minute}
+    user_reminders[user_id] = {
+        "hour": hour,
+        "minute": minute,
+        "timezone": timezone
+    }
     scheduler.add_job(
         send_reminder,
         trigger="cron",
         hour=hour,
         minute=minute,
+        timezone=timezone,
         id=f"reminder_{user_id}",
-        args=[user_id]
+        args=[user_id],
+        replace_existing=True
     )
     
     await message.answer(
-        f"✅ Reminder set for {message.text} every day!",
+        f"✅ Reminder set!\n"
+        f"⏰ Every day at {message.text}\n"
+        f"🌍 Timezone: {timezone}",
         reply_markup=get_main_keyboard()
     )
     await state.clear()
-
-async def send_reminder(user_id: int):
-    await bot.send_message(
-        user_id,
-        "🔔 Don't forget to record your expenses today! 💰\n"
-        "Press ➕ Add Transaction"
-    )
 
 @dp.message(F.text == "📋 My Reminders")
 async def my_reminders(message: types.Message):
@@ -1173,7 +1219,8 @@ async def my_reminders(message: types.Message):
     reminder = user_reminders[user_id]
     await message.answer(
         f"🔔 Your reminder:\n"
-        f"Every day at {reminder['hour']:02d}:{reminder['minute']:02d}",
+        f"⏰ Every day at {reminder['hour']:02d}:{reminder['minute']:02d}\n"
+        f"🌍 Timezone: {reminder['timezone']}",
         reply_markup=get_reminder_keyboard()
     )
 
@@ -1191,6 +1238,13 @@ async def delete_reminder(message: types.Message):
     await message.answer(
         "✅ Reminder deleted!",
         reply_markup=get_reminder_keyboard()
+    )
+
+async def send_reminder(user_id: int):
+    await bot.send_message(
+        user_id,
+        "🔔 Don't forget to record your expenses today! 💰\n"
+        "Press ➕ Add Transaction"
     )
 # ══════════════════════════════════════
 #             Logout
