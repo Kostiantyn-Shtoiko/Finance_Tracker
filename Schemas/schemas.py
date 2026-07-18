@@ -40,3 +40,11 @@ class ProfileUpdateSchema(BaseModel):
     phone: str | None = None
     password: str | None = None
 
+class CategoryAddSchema(BaseModel):
+    name: str
+    emoji: str = "📝"  # ← default emoji
+
+class CategorySchema(BaseModel):
+    id: int
+    name: str
+    emoji: str

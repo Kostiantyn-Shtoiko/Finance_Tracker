@@ -28,3 +28,11 @@ class TransactionModel(Base):
     title: Mapped[str]
     type: Mapped[str]
     date: Mapped[str]
+
+class CategoryModel(Base):
+    __tablename__ = "categories"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"))
+    name: Mapped[str]
+    emoji: Mapped[str]

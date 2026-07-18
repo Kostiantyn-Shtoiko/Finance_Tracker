@@ -53,6 +53,11 @@ class EditProfileStates(StatesGroup):
 class ReminderStates(StatesGroup):
     waiting_for_time = State()
     waiting_for_timezone = State()
+
+class CategoryStates(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_emoji = State()
+    waiting_for_delete = State()
 # ══════════════════════════════════════
 #              BOT & DISPATCHER
 # ══════════════════════════════════════
@@ -351,6 +356,33 @@ async def delete_account_api(token: str):
     async with httpx.AsyncClient() as client:
         response = await client.delete(
             f"{BASE_URL}/auth/me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+    
+async def get_categories_api(token: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{BASE_URL}/categories/",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        print("STATUS:", response.status_code)
+        print("BODY:", response.text)
+        return response.json()
+
+async def add_category_api(token: str, name: str, emoji: str):
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{BASE_URL}/categories/",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": name, "emoji": emoji}
+        )
+        return response.json()
+
+async def delete_category_api(token: str, category_id: int):
+    async with httpx.AsyncClient() as client:
+        response = await client.delete(
+            f"{BASE_URL}/categories/{category_id}",
             headers={"Authorization": f"Bearer {token}"}
         )
         return response.json()
@@ -764,26 +796,47 @@ async def add_transaction_amount(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(amount=amount)
-    await message.answer(
-        "Choose category:",
-        reply_markup=get_category_keyboard()
+    
+    token = user_tokens.get(message.from_user.id)
+    custom_categories = await get_categories_api(token)
+    
+    keyboard_rows = [
+        [KeyboardButton(text="🍔 Food"), KeyboardButton(text="💼 Salary")],
+        [KeyboardButton(text="🚗 Transport"), KeyboardButton(text="🏠 Housing")],
+        [KeyboardButton(text="🎮 Entertainment"), KeyboardButton(text="📝 Other")],
+    ]
+    
+    for cat in custom_categories:
+        keyboard_rows.append([
+            KeyboardButton(text=f"{cat['emoji']} {cat['name']}")
+        ])
+    
+    keyboard_rows.append([KeyboardButton(text="❌ Cancel")])
+    
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=keyboard_rows,
+        resize_keyboard=True
     )
+    
+    await message.answer("Choose category:", reply_markup=keyboard)
     await state.set_state(AddTransactionStates.waiting_for_category)
 
-@dp.message(
-    F.text.in_(["🍔 Food", "💼 Salary", "🚗 Transport", "🏠 Housing", "🎮 Entertainment", "📝 Other"]),
-    AddTransactionStates.waiting_for_category
-)
+@dp.message(AddTransactionStates.waiting_for_category)
 async def add_transaction_category(message: types.Message, state: FSMContext):
-    category = message.text.split(" ", 1)[1].lower()  # "🍔 Food" → "food"
+    standard = ["🍔 Food", "💼 Salary", "🚗 Transport",
+                "🏠 Housing", "🎮 Entertainment", "📝 Other"]
+    
+    if message.text in standard:
+        category = message.text.split(" ", 1)[1].lower()
+    else:
+        category = message.text.split(" ", 1)[1] if " " in message.text else message.text
+    
     await state.update_data(category=category)
-
     await message.answer(
         "📝 Enter a title\n\n"
         "Or press ⏭ Skip if you don't want to add one.",
         reply_markup=get_skip_keyboard()
     )
-
     await state.set_state(AddTransactionStates.waiting_for_title)
 
 @dp.message(AddTransactionStates.waiting_for_title)
@@ -1246,6 +1299,71 @@ async def send_reminder(user_id: int):
         "🔔 Don't forget to record your expenses today! 💰\n"
         "Press ➕ Add Transaction"
     )
+
+# ══════════════════════════════════════
+#            Edit Category
+# ══════════════════════════════════════
+@dp.message(F.text == "✏️ Edit Categories")
+async def edit_categories(message: types.Message):
+    token = user_tokens.get(message.from_user.id)
+    categories = await get_categories_api(token)
+    
+    
+    text = "📋 Your Custom Categories:\n━━━━━━━━━━━━━━━\n"
+    if not categories:
+        text += "No custom categories yet!\n"
+    else:
+        for cat in categories:
+            text += f"• {cat['emoji']} {cat['name']}\n"
+    
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="➕ Add Category"),
+                KeyboardButton(text="🗑️ Delete Category")
+            ],
+            [KeyboardButton(text="⬅️ Back")]
+        ],
+        resize_keyboard=True
+    )
+    await message.answer(text, reply_markup=keyboard)
+
+@dp.message(F.text == "➕ Add Category")
+async def add_category_start(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Enter category name:\nExample: Gym",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(CategoryStates.waiting_for_name)
+
+@dp.message(CategoryStates.waiting_for_name)
+async def save_category_name(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await message.answer(
+        "Enter emoji for category:\nExample: 💪\n\n"
+        "Or press ⏭ Skip for default 📝",
+        reply_markup=get_skip_keyboard()
+    )
+    await state.set_state(CategoryStates.waiting_for_emoji)
+
+@dp.message(CategoryStates.waiting_for_emoji)
+async def save_category_emoji(message: types.Message, state: FSMContext):
+    emoji = "📝" if message.text == "⏭ Skip" else message.text
+    data = await state.get_data()
+    token = user_tokens.get(message.from_user.id)
+    
+    result = await add_category_api(token, data.get("name"), emoji)
+    
+    if "success" in result:
+        await message.answer(
+            f"✅ Category {emoji} {data.get('name')} added!",
+            reply_markup=get_main_keyboard()
+        )
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+    
+    await state.clear()
+
 # ══════════════════════════════════════
 #             Logout
 # ══════════════════════════════════════
