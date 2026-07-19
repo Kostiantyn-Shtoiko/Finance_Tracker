@@ -799,7 +799,6 @@ async def add_transaction_amount(message: types.Message, state: FSMContext):
     
     token = user_tokens.get(message.from_user.id)
     custom_categories = await get_categories_api(token)
-    
     keyboard_rows = [
         [KeyboardButton(text="🍔 Food"), KeyboardButton(text="💼 Salary")],
         [KeyboardButton(text="🚗 Transport"), KeyboardButton(text="🏠 Housing")],
