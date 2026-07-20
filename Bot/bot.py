@@ -1,4 +1,5 @@
 from email.mime import message
+import profile
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BotCommand
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
@@ -946,6 +947,8 @@ async def profile_command(message: types.Message, state: FSMContext):
         f"👤 Profile\n"
         f"━━━━━━━━━━━━━━━\n"
         f"💵 Balance:  {balance['balance']:.2f}\n"
+        f"Phone: {user_info['phone']}\n"
+        f"📅 Registered: {user_info['created_at']}"
         f"━━━━━━━━━━━━━━━\n"
     )
     await message.answer(text, reply_markup=get_profile_keyboard())

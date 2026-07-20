@@ -1,6 +1,7 @@
+from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped
-from sqlalchemy import ForeignKey
+from sqlalchemy import Column, DateTime, ForeignKey
 
 engine = create_async_engine('sqlite+aiosqlite:///profile.db')
 
@@ -16,6 +17,12 @@ class ProfileModel(Base):
     first_name: Mapped[str]
     phone: Mapped[str] 
     password: Mapped[str]
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
 
 
 class TransactionModel(Base):
