@@ -1,5 +1,6 @@
 from email.mime import message
 import profile
+from unittest import result
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BotCommand
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
@@ -528,17 +529,23 @@ async def register_password(message: types.Message, state: FSMContext):
     )
 
     if result.get("success"):
+        login_result = await login_user(data["phone"], data["password"])
+    
+    if "token" in login_result:
+        user_tokens[message.from_user.id] = login_result["token"]
+        profile = await get_me(login_result["token"])
+        name = profile.get("first_name", "Friend")
         await message.answer(
-            "Registration successful! 🎉",
+            f"Registration successful! 🎉\n"
+            f"Welcome, {name}! You are now logged in! ✅",
             reply_markup=get_main_keyboard()
         )
-        await state.clear()
     else:
         await message.answer(
-            f"Registration failed: {result.get('detail', 'Unknown error')}",
+            "Registration successful! 🎉\nPlease login manually.",
             reply_markup=get_main_keyboard()
         )
-        await state.clear()
+    await state.clear()
 
 def is_strong_password(password: str) -> bool:
     if len(password) < 8:
@@ -579,8 +586,15 @@ async def weak_password_confirmation(message: types.Message, state: FSMContext):
         )
 
         if result.get("success"):
+            login_result = await login_user(data["phone"], data["password"])
+    
+        if "token" in login_result:
+            user_tokens[message.from_user.id] = login_result["token"]
+            profile = await get_me(login_result["token"])
+            name = profile.get("first_name", "Friend")
             await message.answer(
-                "Registration successful! 🎉",
+                f"Registration successful! 🎉\n"
+                f"Welcome, {name}! You are now logged in! ✅",
                 reply_markup=get_main_keyboard()
             )
         else:
@@ -588,10 +602,9 @@ async def weak_password_confirmation(message: types.Message, state: FSMContext):
                 f"Registration failed: {result.get('detail', 'Unknown error')}",
                 reply_markup=get_main_keyboard()
             )
-
         await state.clear()
         return
-
+    
     await message.answer("Please choose one of the buttons.")
 
 # ══════════════════════════════════════
