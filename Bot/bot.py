@@ -19,8 +19,8 @@ load_dotenv()
 
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
-# BASE_URL = os.getenv("BASE_URL", "http://api:8000")
+# BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
+BASE_URL = os.getenv("BASE_URL", "http://api:8000")
 
 # ══════════════════════════════════════
 #              STATES
@@ -60,6 +60,13 @@ class CategoryStates(StatesGroup):
     waiting_for_name = State()
     waiting_for_emoji = State()
     waiting_for_delete = State()
+
+class GoalStates(StatesGroup):
+    waiting_for_title = State()
+    waiting_for_emoji = State()
+    waiting_for_amount = State()
+    waiting_for_deadline = State()
+    waiting_for_add_amount = State()
 # ══════════════════════════════════════
 #              BOT & DISPATCHER
 # ══════════════════════════════════════
@@ -99,6 +106,7 @@ def get_main_keyboard():
                 KeyboardButton(text="ℹ️ Help")
             ],
             [
+                KeyboardButton(text="🎯 Goals"),
                 KeyboardButton(text="👤 Profile"),
             ]
         ],
@@ -268,6 +276,18 @@ def get_timezone_keyboard():
         ],
         resize_keyboard=True
     )
+
+def get_goals_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="🎯 My Goals"),
+                KeyboardButton(text="➕ Add Goal")
+            ],
+            [KeyboardButton(text="⬅️ Back")]
+        ],
+        resize_keyboard=True
+    )
 # ══════════════════════════════════════
 #              API FUNCTIONS
 # ══════════════════════════════════════
@@ -386,6 +406,43 @@ async def delete_category_api(token: str, category_id: int):
         response = await client.delete(
             f"{BASE_URL}/categories/{category_id}",
             headers={"Authorization": f"Bearer {token}"}
+        )
+        return response.json()
+    
+async def get_goals_api(token):
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    async with httpx.AsyncClient() as session:
+        response = await session.get(
+            f"{BASE_URL}/goals/",
+            headers=headers
+        )
+        return response.json()
+    
+async def add_goal_api(token, data):
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    async with httpx.AsyncClient() as session:
+        response = await session.post(
+            f"{BASE_URL}/goals/",
+            headers=headers,
+            json=data
+        )
+        return response.json()
+    
+async def delete_goal_api(token, goal_id):
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    async with httpx.AsyncClient() as session:
+        response = await session.delete(
+            f"{BASE_URL}/goals/{goal_id}",
+            headers=headers
         )
         return response.json()
 # ══════════════════════════════════════
@@ -1199,6 +1256,57 @@ async def cancel_delete_account(message: types.Message):
         reply_markup=get_main_keyboard()
     )
 
+# ══════════════════════════════════════
+#              Goals
+# ══════════════════════════════════════
+@dp.message(F.text == "🎯 Goals")
+async def show_goals(message: types.Message):
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ Please login first!", reply_markup=get_auth_keyboard())
+        return
+    
+    goals = await get_goals_api(token)
+    
+    if not goals:
+        await message.answer("No goals yet! 📭\nAdd your first goal!", reply_markup=get_goals_keyboard())
+        return
+    
+    for goal in goals:
+        progress = make_progress_bar(goal['current_amount'], goal['target_amount'])
+        remaining = goal['target_amount'] - goal['current_amount']
+        
+        deadline = datetime.strptime(goal['deadline'], "%Y-%m-%d")
+        days_left = (deadline - datetime.now()).days
+        daily_needed = remaining / days_left if days_left > 0 else 0
+        
+        text = (
+            f"{goal['emoji']} {goal['title']}\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"🎯 Target:    {goal['target_amount']:.2f}\n"
+            f"💰 Saved:     {goal['current_amount']:.2f}\n"
+            f"📉 Remaining: {remaining:.2f}\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"{progress}\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"📅 Days left: {days_left}\n"
+            f"💸 Daily needed: {daily_needed:.2f}/day"
+        )
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="➕ Add Money", callback_data=f"goal_add_{goal['id']}"),
+                InlineKeyboardButton(text="🗑️ Delete", callback_data=f"goal_delete_{goal['id']}")
+            ]
+        ])
+        await message.answer(text, reply_markup=keyboard)
+
+def make_progress_bar(current: float, target: float) -> str:
+    percentage = min(current / target * 100, 100)
+    filled = int(percentage / 10)
+    empty = 10 - filled
+    bar = "█" * filled + "░" * empty
+    return f"{bar} {percentage:.1f}%"
 # ══════════════════════════════════════
 #             Reminder Time
 # ══════════════════════════════════════

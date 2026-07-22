@@ -43,3 +43,14 @@ class CategoryModel(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"))
     name: Mapped[str]
     emoji: Mapped[str]
+
+class GoalModel(Base):
+    __tablename__ = "goals"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("profiles.id"))
+    title: Mapped[str]
+    target_amount: Mapped[float]
+    current_amount: Mapped[float] = mapped_column(default=0.0)
+    deadline: Mapped[str]
+    emoji: Mapped[str] = mapped_column(default="🎯")

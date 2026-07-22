@@ -48,3 +48,9 @@ class CategorySchema(BaseModel):
     id: int
     name: str
     emoji: str
+
+class GoalAddSchema(BaseModel):
+    title: str
+    target_amount: float
+    deadline: str
+    emoji: str = "🎯"
