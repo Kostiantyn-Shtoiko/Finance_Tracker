@@ -19,8 +19,8 @@ load_dotenv()
 
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-# BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
-BASE_URL = os.getenv("BASE_URL", "http://api:8000")
+BASE_URL = os.getenv("BASE_URL", "https://financetracker-production-d18b.up.railway.app")
+# BASE_URL = os.getenv("BASE_URL", "http://api:8000")
 
 # ══════════════════════════════════════
 #              STATES
@@ -1268,9 +1268,17 @@ async def show_goals(message: types.Message):
     
     goals = await get_goals_api(token)
     
-    if not goals:
-        await message.answer("No goals yet! 📭\nAdd your first goal!", reply_markup=get_goals_keyboard())
+    if not isinstance(goals, list) or not goals:
+        await message.answer(
+            "No goals yet! 📭\nAdd your first goal!",
+            reply_markup=get_goals_keyboard() 
+        )
         return
+    
+    await message.answer(
+        "🎯 Your Goals:",
+        reply_markup=get_goals_keyboard()  
+    )
     
     for goal in goals:
         progress = make_progress_bar(goal['current_amount'], goal['target_amount'])
@@ -1290,7 +1298,7 @@ async def show_goals(message: types.Message):
             f"{progress}\n"
             f"━━━━━━━━━━━━━━━\n"
             f"📅 Days left: {days_left}\n"
-            f"💸 Daily needed: {daily_needed:.2f}/day"
+            f"💸 Daily: {daily_needed:.2f}/day"
         )
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -1307,6 +1315,199 @@ def make_progress_bar(current: float, target: float) -> str:
     empty = 10 - filled
     bar = "█" * filled + "░" * empty
     return f"{bar} {percentage:.1f}%"
+
+@dp.message(F.text == "🎯 My Goals")
+async def show_my_goals(message: types.Message):
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ Please login first!", reply_markup=get_auth_keyboard())
+        return
+
+    goals = await get_goals_api(token)
+
+    if not isinstance(goals, list) or not goals:
+        await message.answer(
+            "No goals yet! 📭\nAdd your first goal!",
+            reply_markup=get_goals_keyboard()
+        )
+        return
+
+    await message.answer(
+        "🎯 Your Goals:",
+        reply_markup=get_goals_keyboard()
+    )
+
+    for goal in goals:
+        progress = make_progress_bar(goal['current_amount'], goal['target_amount'])
+        remaining = goal['target_amount'] - goal['current_amount']
+
+        deadline = datetime.strptime(goal['deadline'], "%Y-%m-%d")
+        days_left = (deadline - datetime.now()).days
+        daily_needed = remaining / days_left if days_left > 0 else 0
+
+        text = (
+            f"{goal['emoji']} {goal['title']}\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"🎯 Target:    {goal['target_amount']:.2f}\n"
+            f"💰 Saved:     {goal['current_amount']:.2f}\n"
+            f"📉 Remaining: {remaining:.2f}\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"{progress}\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"📅 Days left: {days_left}\n"
+            f"💸 Daily: {daily_needed:.2f}/day"
+        )
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="➕ Add Money", callback_data=f"goal_add_{goal['id']}"),
+                InlineKeyboardButton(text="🗑️ Delete", callback_data=f"goal_delete_{goal['id']}")
+            ]
+        ])
+        await message.answer(text, reply_markup=keyboard)
+
+def make_progress_bar(current: float, target: float) -> str:
+    percentage = min(current / target * 100, 100)
+    filled = int(percentage / 10)
+    empty = 10 - filled
+    bar = "█" * filled + "░" * empty
+    return f"{bar} {percentage:.1f}%"
+
+@dp.message(F.text == "➕ Add Goal")
+async def add_goal_start(message: types.Message, state: FSMContext):
+    token = user_tokens.get(message.from_user.id)
+    if not token:
+        await message.answer("⚠️ Please login first!", reply_markup=get_auth_keyboard())
+        return
+    await message.answer(
+        "Enter goal title:\nExample: Buy a laptop 💻",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(GoalStates.waiting_for_title)
+
+@dp.message(GoalStates.waiting_for_title)
+async def save_goal_title(message: types.Message, state: FSMContext):
+    await state.update_data(title=message.text)
+    await message.answer(
+        "Enter emoji for goal:\nExample: 💻\n\n"
+        "Or press ⏭ Skip for default 🎯",
+        reply_markup=get_skip_keyboard()
+    )
+    await state.set_state(GoalStates.waiting_for_emoji)
+
+@dp.message(GoalStates.waiting_for_emoji)
+async def save_goal_emoji(message: types.Message, state: FSMContext):
+    emoji = "🎯" if message.text == "⏭ Skip" else message.text
+    await state.update_data(emoji=emoji)
+    await message.answer(
+        "Enter target amount:\nExample: 1000",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(GoalStates.waiting_for_amount)
+
+@dp.message(GoalStates.waiting_for_amount)
+async def save_goal_amount(message: types.Message, state: FSMContext):
+    try:
+        amount = float(message.text)
+        if amount <= 0:
+            await message.answer("❌ Amount must be > 0! Try again:")
+            return
+    except ValueError:
+        await message.answer("❌ Enter a number! Example: 1000")
+        return
+    
+    await state.update_data(target_amount=amount)
+    await message.answer(
+        "Enter deadline (YYYY-MM-DD):\nExample: 2024-12-31"
+    )
+    await state.set_state(GoalStates.waiting_for_deadline)
+
+@dp.message(GoalStates.waiting_for_deadline)
+async def save_goal_deadline(message: types.Message, state: FSMContext):
+    try:
+        datetime.strptime(message.text, "%Y-%m-%d")
+    except ValueError:
+        await message.answer("❌ Wrong format! Use: YYYY-MM-DD\nExample: 2024-12-31")
+        return
+    
+    data = await state.get_data()
+    token = user_tokens.get(message.from_user.id)
+    
+    result = await add_goal_api(token, {
+        "title": data.get("title"),
+        "emoji": data.get("emoji"),
+        "target_amount": data.get("target_amount"),
+        "deadline": message.text
+    })
+    
+    if "success" in result:
+        await message.answer(
+            f"✅ Goal '{data.get('title')}' created!\n"
+            f"Target: {data.get('target_amount'):.2f}\n"
+            f"Deadline: {message.text}",
+            reply_markup=get_main_keyboard()
+        )
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+    
+    await state.clear()
+
+@dp.callback_query(lambda c: c.data.startswith("goal_add_"))
+async def goal_add_money_start(callback_query: types.CallbackQuery, state: FSMContext):
+    goal_id = callback_query.data.replace("goal_add_", "")
+    await state.update_data(goal_id=goal_id)
+    await callback_query.message.answer(
+        "Enter amount to add:\nExample: 100"
+    )
+    await state.set_state(GoalStates.waiting_for_add_amount)
+    await callback_query.answer()
+
+@dp.message(GoalStates.waiting_for_add_amount)
+async def save_goal_add_amount(message: types.Message, state: FSMContext):
+    try:
+        amount = float(message.text)
+        if amount <= 0:
+            await message.answer("❌ Amount must be > 0! Try again:")
+            return
+    except ValueError:
+        await message.answer("❌ Enter a number! Example: 100")
+        return
+    
+    data = await state.get_data()
+    goal_id = data.get("goal_id")
+    token = user_tokens.get(message.from_user.id)
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.put(
+            f"{BASE_URL}/goals/{goal_id}/add",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"amount": amount}
+        )
+        result = response.json()
+    
+    if "success" in result:
+        await message.answer(
+            f"✅ Added {amount:.2f} to goal!",
+            reply_markup=get_main_keyboard()
+        )
+    else:
+        await message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+    
+    await state.clear()
+
+@dp.callback_query(lambda c: c.data.startswith("goal_delete_"))
+async def goal_delete(callback_query: types.CallbackQuery):
+    goal_id = int(callback_query.data.replace("goal_delete_", ""))
+    token = user_tokens.get(callback_query.from_user.id)
+    
+    result = await delete_goal_api(token, goal_id)
+    
+    if "success" in result:
+        await callback_query.message.answer("✅ Goal deleted!", reply_markup=get_main_keyboard())
+    else:
+        await callback_query.message.answer("Something went wrong! ❌", reply_markup=get_main_keyboard())
+    
+    await callback_query.answer()
 # ══════════════════════════════════════
 #             Reminder Time
 # ══════════════════════════════════════
